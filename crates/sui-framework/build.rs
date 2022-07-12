@@ -12,7 +12,7 @@ use std::{
 /// Save revision info to environment variable
 fn main() {
     #[cfg(target_family = "windows")]
-    println!("cargo:rustc-link-arg=/STACK:64000000");
+    println!("cargo:rustc-link-arg=STACK:64000000");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let sui_framwork_path = Path::new(env!("CARGO_MANIFEST_DIR"));

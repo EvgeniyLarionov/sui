@@ -4,6 +4,7 @@
 use anyhow::Result;
 use move_binary_format::CompiledModule;
 use move_package::BuildConfig;
+use std::thread::Builder;
 use std::{
     env, fs,
     path::{Path, PathBuf},
@@ -11,20 +12,28 @@ use std::{
 
 /// Save revision info to environment variable
 fn main() {
-    #[cfg(target_family = "windows")]
-    println!("cargo:rustc-link-arg=-zstack-size=64000000");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let sui_framwork_path = Path::new(env!("CARGO_MANIFEST_DIR"));
     let move_stdlib_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("deps/move-stdlib");
 
     let sui_build_config = BuildConfig::default();
-    let sui_framework =
-        sui_framework_build::build_move_package(sui_framwork_path, sui_build_config).unwrap();
-    let move_stdlib = sui_framework_build::build_move_stdlib_modules(&move_stdlib_path).unwrap();
 
-    serialize_modules_to_file(sui_framework, &out_dir.join("sui-framework")).unwrap();
-    serialize_modules_to_file(move_stdlib, &out_dir.join("move-stdlib")).unwrap();
+    let move_stdlib = move_stdlib_path.clone();
+    Builder::new()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(move || {
+            let sui_framework =
+                sui_framework_build::build_move_package(sui_framwork_path, sui_build_config)
+                    .unwrap();
+            let move_stdlib = sui_framework_build::build_move_stdlib_modules(&move_stdlib).unwrap();
+
+            serialize_modules_to_file(sui_framework, &out_dir.join("sui-framework")).unwrap();
+            serialize_modules_to_file(move_stdlib, &out_dir.join("move-stdlib")).unwrap();
+        })
+        .unwrap()
+        .join()
+        .unwrap();
 
     println!("cargo:rerun-if-changed=build.rs");
     println!(
